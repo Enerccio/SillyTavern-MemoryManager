@@ -70,10 +70,8 @@ class MemoryManagement {
         }
 
         mblock.makeStale();
-        mblock.thoughts = undefined;
-        mblock.$messageId = undefined;
 
-        const currentMemories = JSON.stringify(mblock.toJson());
+        const currentMemories = JSON.stringify(mblock.toJson().memoryMap);
         let messageData = (await window.enerccio_compat?.messageProcessor(m.mes, { 'role': m.is_user ? 'user' : (m.is_system ? 'system' : 'assistant'), 'content': m.mes }, {
             imprint: false,
             messageId: message
@@ -118,7 +116,7 @@ class MemoryManagement {
             log("Data from LLM: " + text);
 
             const dataFromLLM = extractAndParseJson(text);
-            const newMemories = Memories.fromJson(dataFromLLM);
+            const newMemories = Memories.fromLlmJson(dataFromLLM);
             newMemories.includeDiff(mblock);
             newMemories.$messageId = message;
             newMemories.thoughts = reasoningText;

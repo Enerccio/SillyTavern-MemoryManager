@@ -112,6 +112,16 @@ export class Memories {
         return instance;
     }
 
+    static fromLlmJson(json) {
+        const instance = new Memories();
+        if (json) {
+            for (const [characterName, characterData] of Object.entries(json)) {
+                instance.memoryMap[characterName] = CharacterMemoryState.fromJson(characterData);
+            }
+        }
+        return instance;
+    }
+
     toJson() {
         const json = {};
         for (const [key, value] of Object.entries(this.memoryMap)) {
