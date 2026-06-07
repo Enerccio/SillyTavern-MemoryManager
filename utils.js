@@ -10,7 +10,7 @@ import {
 import {getPresetManager} from "/scripts/preset-manager.js";
 import {ChatCompletionService, TextCompletionService} from "/scripts/custom-request.js";
 import {t} from "/scripts/i18n.js";
-import {NPC_MEMORY_GEN_PROMPT_DEFAULTS} from "./prompts.js";
+import {NPC_GEN_PROMPT_DEFAULTS, NPC_MEMORY_GEN_PROMPT_DEFAULTS} from "./prompts.js";
 
 export const SETTING_NPC_GEN_PROMPT = 'npcGenPrompt';
 export const SETTING_MEM_GEN_PROMPT = 'memGenPrompt';
@@ -308,17 +308,21 @@ export async function loadSettings() {
 
     await updateConnectionProfileDropdown();
 
-    const $query = $("#enerccio_memmanager_npcgen_prompt");
-    $query.on('input', () => {
-        setSettings(SETTING_NPC_GEN_PROMPT, $query.val());
+    const $npcGenPrompt = $("#enerccio_memmanager_npcgen_prompt");
+    $npcGenPrompt.on('input', () => {
+        setSettings(SETTING_NPC_GEN_PROMPT, $npcGenPrompt.val());
     });
-    $query.val(getSettings(SETTING_NPC_GEN_PROMPT, false, ``));
+    const genSet = getSettings(SETTING_NPC_GEN_PROMPT, false, NPC_GEN_PROMPT_DEFAULTS) || NPC_GEN_PROMPT_DEFAULTS;
+    $npcGenPrompt.val(genSet);
+    setSettings(SETTING_NPC_GEN_PROMPT, genSet);
 
-    const $queryLast = $("#enerccio_memmanager_memoryupdate_prompt");
-    $queryLast.on('input', () => {
-        setSettings(SETTING_MEM_GEN_PROMPT, $queryLast.val());
+    const $npcMemGenPrompt = $("#enerccio_memmanager_memoryupdate_prompt");
+    $npcMemGenPrompt.on('input', () => {
+        setSettings(SETTING_MEM_GEN_PROMPT, $npcMemGenPrompt.val());
     });
-    $queryLast.val(getSettings(SETTING_MEM_GEN_PROMPT, false, NPC_MEMORY_GEN_PROMPT_DEFAULTS));
+    const memSet = getSettings(SETTING_MEM_GEN_PROMPT, false, NPC_MEMORY_GEN_PROMPT_DEFAULTS) || NPC_MEMORY_GEN_PROMPT_DEFAULTS;
+    $npcMemGenPrompt.val(memSet);
+    setSettings(SETTING_MEM_GEN_PROMPT, memSet);
 }
 
 export function extractAndParseJson(rawText) {

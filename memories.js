@@ -95,6 +95,7 @@ export class Memories {
     constructor() {
         this.memoryMap = {};
         this.thoughts = null;
+        this.output = null;
 
         // transient
         this.$messageId = null;
@@ -102,13 +103,14 @@ export class Memories {
 
     static fromJson(json) {
         const instance = new Memories();
-        const source = json?.memoryMap || json; // Flexible hydration support
+        const source = json?.memoryMap;
         if (source) {
             for (const [key, value] of Object.entries(source)) {
                 instance.memoryMap[key] = CharacterMemoryState.fromJson(value);
             }
         }
-        source.thoughts = json.thoughts;
+        instance.thoughts = json.thoughts;
+        instance.output = json.output;
         return instance;
     }
 
@@ -129,7 +131,8 @@ export class Memories {
         }
         return {
             memoryMap: serializedMap,
-            thoughts: this.thoughts
+            thoughts: this.thoughts,
+            output: this.output,
         };
     }
 
@@ -146,6 +149,10 @@ export class Memories {
         for (const [key, value] of Object.entries(this.memoryMap)) {
             value.makeStale();
         }
+    }
+
+    getOutput() {
+        return this.output;
     }
 
     toMemoryBlockAll(ignoreRetention = false) {

@@ -12,11 +12,19 @@ import {
 import {event_types, eventSource} from "../../../events.js";
 import {CharacterMemoryState, Memories} from "./memories.js";
 import {groups, selected_group} from "../../../group-chats.js";
-import {characters, getCharacterCardFields, getMaxPromptTokens, this_chid} from "../../../../script.js";
+import {
+    characters, extension_prompt_types,
+    getCharacterCardFields,
+    getMaxPromptTokens,
+    setExtensionPrompt,
+    this_chid
+} from "/script.js";
 import {getWorldInfoPrompt} from "../../../world-info.js";
 import {MEMORY_SCHEMA, NPC_MEMORY_GEN_PROMPT_DEFAULTS} from "./prompts.js";
+import {EXTENSION_NAME} from "./conf.js";
 
 const MEMORY_KEY = "messageMemory";
+const EXT_PROMPT = `${EXTENSION_NAME}_memory`
 
 class MemoryManagement {
 
@@ -56,38 +64,61 @@ class MemoryManagement {
         await this.evictGeneration(message);
 
         let mblock = this.getMemoryBlock(message - 1);
+        const presentCharacters = await this.getPresentCharacters();
         if (!mblock) {
-            if (characterDetection()) {
-                // TODO
-            } else {
-                mblock = new Memories();
-                mblock.$messageId = null;
-                const presentCharacters = await this.getPresentCharacters();
-                for (let pc of presentCharacters) {
-                    mblock.memoryMap[pc] = CharacterMemoryState.fromJson({});
-                }
+            mblock = new Memories();
+            mblock.$messageId = null;
+            for (let pc of presentCharacters) {
+                mblock.memoryMap[pc] = CharacterMemoryState.fromJson({});
             }
         }
 
         mblock.makeStale();
 
         const currentMemories = JSON.stringify(mblock.toJson().memoryMap);
-        let messageData = (await window.enerccio_compat?.messageProcessor(m.mes, { 'role': m.is_user ? 'user' : (m.is_system ? 'system' : 'assistant'), 'content': m.mes }, {
+        let messageData = m.name + ": " + ((await window.enerccio_compat?.messageProcessor(m.mes, { 'role': m.is_user ? 'user' : (m.is_system ? 'system' : 'assistant'), 'content': m.mes }, {
             imprint: false,
             messageId: message
-        })) || m.mes;
+        }))) || m.mes;
+        let startPoint = message;
         if (message > 1) {
             const pm = context.chat[message - 1];
             if (pm.is_user) {
                 // include last user message into detection
                 messageData = pm.name + ": " + pm.mes + "\n\n" + messageData;
+                startPoint--;
             }
+        }
+
+        let previousScenes = [];
+        // TODO: Settings
+        for (let i=startPoint-1; i>=Math.max(0, startPoint - 6); i--) {
+            const pastMessage = context.chat[i];
+            let pastMessageData;
+            if (pastMessage.is_user) {
+                pastMessageData = pastMessage.name + ": " + pastMessage.mes + "\n\n" + messageData;
+            } else if (!pastMessage.is_system) {
+                pastMessageData = pastMessage.name + ": " + ((await window.enerccio_compat?.messageProcessor(pastMessage.mes, { 'role': pastMessage.is_user ? 'user' : (pastMessage.is_system ? 'system' : 'assistant'), 'content': pastMessage.mes }, {
+                    imprint: false,
+                    messageId: i
+                }))) || pastMessage.mes;
+            }
+            if (pastMessageData) {
+                previousScenes.push(pastMessageData);
+            }
+        }
+        let previousSceneData = "";
+        for (let i=previousScenes.length-1; i>=0; i--) {
+            previousSceneData += "\n\n" + previousScenes[i];
         }
 
         const promptText = compilePromptTemplate(getSettings(SETTING_MEM_GEN_PROMPT, false, NPC_MEMORY_GEN_PROMPT_DEFAULTS), {
             currentMemory: currentMemories || "",
-            sceneToProcess: messageData
+            sceneToProcess: messageData,
+            previousScenes: previousSceneData,
         });
+
+        log("Prompt for LLM: " + promptText);
 
         const metadata = initializeRequestMetadata();
         const profile = metadata.cId;
@@ -113,13 +144,18 @@ class MemoryManagement {
                 reasoningText = returnFromGenerator.state?.reasoning;
             }
 
-            const dataFromLLM = extractAndParseJson(text);
-            log("Data from LLM: " + JSON.stringify(dataFromLLM, null, 2));
-            const newMemories = Memories.fromLlmJson(dataFromLLM);
-            newMemories.includeDiff(mblock);
-            newMemories.$messageId = message;
-            newMemories.thoughts = reasoningText;
-            this.persistMemoryState(newMemories);
+            try {
+                const dataFromLLM = extractAndParseJson(text);
+                log("Data from LLM: " + JSON.stringify(dataFromLLM, null, 2));
+                const newMemories = Memories.fromLlmJson(dataFromLLM);
+                newMemories.includeDiff(mblock);
+                newMemories.$messageId = message;
+                newMemories.thoughts = reasoningText;
+                newMemories.output = newMemories.toMemoryBlock(presentCharacters);
+                this.persistMemoryState(newMemories);
+            } catch (syntaxFailed) {
+                error("Failed to parse: " + text);
+            }
         } catch (aborted) {
             if (aborted === 'userStopped') {
                 log('Memory generation stopped');
@@ -253,15 +289,15 @@ class MemoryManagement {
         return clist;
     }
 
-    async insertMemories(data) {
+    async insertMemories(data, dryRun) {
         const lastMemory = this.getLastMemoryBlock();
         if (lastMemory) {
-            const context = SillyTavern.getContext();
-            const text = lastMemory.toMemoryBlock(await this.getPresentCharacters(context.chat.length - 1));
+            const text = lastMemory.getOutput();
             if (text) {
                 for (let i = data.chat.length - 1; i >= 0; i--) {
                     if (data.chat[i].role === 'user') {
-                        log("Data to LLM: " + text);
+                        if (!dryRun)
+                            log("Data to LLM: " + text);
                         data.chat[i].content = `${text}\n\n` + data.chat[i].content;
                         return;
                     }
@@ -287,9 +323,9 @@ $(async function() {
     }
 
     for (let event of [event_types.CHAT_COMPLETION_PROMPT_READY]) {
-        eventSource.on(event, async (data) => {
+        eventSource.on(event, async (data, dryRun=false) => {
             if (areMemoriesEnabled()) {
-                await mm.insertMemories(data);
+                await mm.insertMemories(data, dryRun);
             }
         });
     }

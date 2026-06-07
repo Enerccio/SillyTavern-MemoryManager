@@ -52,19 +52,32 @@ For each character provided in the input state and present on scene, analyze the
 5. **Maintain Strict Ordering:**
    - Any memory where \`"fresh"\` is \`true\` MUST be placed at the **very front** (the beginning) of its respective array.
    - Any memory where \`"fresh"\` is \`false\` must remain in the array, but shifted below the fresh memories, maintaining their original relative order.
+6. **Detect Temporal Shifts & Apply Decay:**
+   Analyze the conversational context and the new interaction for any narrative indications of a significant passage of time (e.g., "the next day", "weeks later", "a year passes"). If a time skip has occurred, you must apply a **Temporal Decay Cycle** to all existing memories BEFORE processing new ones:
+   - **Short Time Skips (Days/Weeks):** Reduce the \`retention"\` value of all non-fresh "Moderate/Contextual" memories (11–49) by 10–20 points. Completely delete "Mundane/Fleeting" memories (1–10).
+   - **Major Time Skips (Months/Years):** Drastically purge the character's memory banks. Completely remove all memories with a retention score under \`50\`. Reduce the retention of "High Priority" memories (50–89) by 20–30 points to reflect fading details.
+   - **Core/Permanent Memories (90–100):** These foundational truths, major secrets, and core trauma never decay due to time skips unless the narrative explicitly states they forgot or resolved them.
 
 If a character is NOT present, do NOT include them in the result!
+
+
 
 ### Output Format:
 You must respond **ONLY** with a valid JSON object matching the input structure. Do not include markdown formatting outside the JSON, do not include backticks, and do not include any conversational filler.
 
 ### Input Data:
 
-Current Memory State:
+===== CURRENT MEMORY STATE START =====
 {{currentMemory}}
+===== CURRENT MEMORY STATE END =====
 
-Recent Scene Text to Process:
+===== PREVIOUS SCENES START =====
+{{previousScenes}}
+===== PREVIOUS SCENES END =====
+
+===== SCENE TO EXTRACT MEMORIES FROM START =====
 {{sceneToProcess}}
+===== SCENE TO EXTRACT MEMORIES FROM END =====
 
 ### JSON Output:`;
 
