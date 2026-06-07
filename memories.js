@@ -123,11 +123,14 @@ export class Memories {
     }
 
     toJson() {
-        const json = {};
-        for (const [key, value] of Object.entries(this.memoryMap)) {
-            json[key] = value.toJson(); // FIXED: Uses bracket notation instead of literal .key string overwrite
+        const serializedMap = {};
+        for (const [characterName, characterState] of Object.entries(this.memoryMap)) {
+            serializedMap[characterName] = characterState.toJson();
         }
-        return json;
+        return {
+            memoryMap: serializedMap,
+            thoughts: this.thoughts
+        };
     }
 
     includeDiff(otherMemories) {

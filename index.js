@@ -85,7 +85,7 @@ class MemoryManagement {
         }
 
         const promptText = compilePromptTemplate(getSettings(SETTING_MEM_GEN_PROMPT, false, NPC_MEMORY_GEN_PROMPT_DEFAULTS), {
-            currentMemory: currentMemories,
+            currentMemory: currentMemories || "",
             sceneToProcess: messageData
         });
 
@@ -113,9 +113,8 @@ class MemoryManagement {
                 reasoningText = returnFromGenerator.state?.reasoning;
             }
 
-            log("Data from LLM: " + text);
-
             const dataFromLLM = extractAndParseJson(text);
+            log("Data from LLM: " + JSON.stringify(dataFromLLM, null, 2));
             const newMemories = Memories.fromLlmJson(dataFromLLM);
             newMemories.includeDiff(mblock);
             newMemories.$messageId = message;
